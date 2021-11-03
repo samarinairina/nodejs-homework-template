@@ -1,4 +1,4 @@
-const Contacts = require("../model");
+const Contacts = require("../repository/contacts.repository");
 
 const getAllContacts = async (req, res, next) => {
   try {
@@ -13,6 +13,8 @@ const getContactById = async (req, res, next) => {
   try {
     const contact = await Contacts.getContactById(req.params.contactId);
     if (contact) {
+      console.log(contact);
+      console.log(contact.id);
       return res
         .status(200)
         .json({ status: "success", code: 200, data: { contact } });
