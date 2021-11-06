@@ -28,6 +28,7 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  console.log("🚀 ~ file: app.js ~ line 31 ~ app.use ~ err", err);
   const statusCode = err.status || 500;
   res.status(statusCode).json({
     status: statusCode === 500 ? "fail" : "error",

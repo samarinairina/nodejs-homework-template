@@ -5,7 +5,14 @@ const mkdirp = require("mkdirp");
 const Users = require("../repository/users.repository");
 const UploadService = require("../services/file-upload");
 const { HttpCode } = require("../config/constants");
+const EmailService = require("../services/email/service");
+const {
+  CreateSenderNodemailer,
+  CreateSenderSendgrid,
+} = require("../services/email/sender");
+
 const { CustomError } = require("../helpers/customError");
+
 require("dotenv").config();
 const SECRET_KEY = process.env.JWT_SECRET_KEY;
 
@@ -20,7 +27,18 @@ const registrationController = async (req, res, next) => {
     });
   }
   try {
+    // TODO send email for verify users
+
     const newUser = await Users.create({ name, email, password, gender });
+    const emailService = new EmailService(
+      process.env.NODE_ENV,
+      new CreateSenderSendgrid()
+    );
+    const statusEmail = await emailService.sendVerifyEmail(
+      newUser.email,
+      newUser.name,
+      newUser.verifyToken
+    );
     return res.status(HttpCode.CREATED).json({
       status: "success",
       code: HttpCode.CREATED,
@@ -30,6 +48,7 @@ const registrationController = async (req, res, next) => {
         email: newUser.email,
         gender: newUser.gender,
         avatar: newUser.avatar,
+        successEmail: statusEmail,
       },
     });
   } catch (e) {
@@ -42,8 +61,8 @@ const loginController = async (req, res, next) => {
   const user = await Users.findByEmail(email);
   if (user) {
     const isValidPassword = await user.isValidPassword(password);
-    console.log("validPassword", isValidPassword);
-    if (isValidPassword) {
+
+    if (isValidPassword && user.isVerified) {
       const id = user._id;
       const payload = { id };
       const token = jwt.sign(payload, SECRET_KEY, { expiresIn: "2h" });
@@ -51,7 +70,7 @@ const loginController = async (req, res, next) => {
       return res.status(HttpCode.OK).json({
         status: "success",
         code: HttpCode.OK,
-        date: {
+        data: {
           token,
           user: {
             email: user.email,
@@ -120,7 +139,50 @@ const uploadAvatarController = async (req, res, next) => {
   return res.status(HttpCode.OK).json({
     status: "success",
     code: HttpCode.OK,
-    date: { avatar: avatarUrl },
+    data: { avatar: avatarUrl },
+  });
+};
+
+const verifyUser = async (req, res, next) => {
+  const user = await Users.findUserByVerifyToken(req.params.token);
+  if (user) {
+    await Users.updateTokenVerify(user._id, true, null);
+    return res.status(HttpCode.OK).json({
+      status: "success",
+      code: HttpCode.OK,
+      data: {
+        message: "Verification successful",
+      },
+    });
+  }
+  return res.status(HttpCode.NOT_FOUND).json({
+    status: "error",
+    code: HttpCode.NOT_FOUND,
+    message: "Invalid token. User not found",
+  });
+};
+
+const repeatEmailForVerifyUser = async (req, res, next) => {
+  const { email } = req.body;
+  const user = await Users.findByEmail(email);
+  if (user) {
+    const { email, name, verifyToken } = user;
+    const emailService = new EmailService(
+      process.env.NODE_ENV,
+      new CreateSenderNodemailer()
+    );
+    const statusEmail = await emailService.sendVerifyEmail(
+      email,
+      name,
+      verifyToken
+    );
+  }
+  return res.status(HttpCode.OK).json({
+    status: "success",
+    code: HttpCode.OK,
+    data: {
+      message: "Success",
+    },
   });
 };
 
@@ -131,4 +193,6 @@ module.exports = {
   currentController,
   updateController,
   uploadAvatarController,
+  verifyUser,
+  repeatEmailForVerifyUser,
 };
