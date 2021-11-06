@@ -43,4 +43,4 @@ module.exports.validateLogin = async (req, res, next) => {
 
 module.exports.validateSubscriptionUpdate = async (req, res, next) => {
   return await validate(schemaSubscription, req.body, res, next);
-}
+};
